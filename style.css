@@ -203,16 +203,31 @@ body{
   border-radius:14px;
   background:#0a0a0a;
   padding:10px 12px;
-  height:96px;
-  overflow:hidden;
-  position:relative;
+  height:120px;
+  overflow:auto;
+  scroll-behavior:smooth;
 }
 
 .spotify-lyrics{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
   font-size:14px;
   color:var(--muted);
   line-height:1.45;
   white-space:pre-line;
+}
+
+/* Highlight current line */
+.lyric-line{
+  opacity:0.55;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.lyric-line.active{
+  opacity:1;
+  transform: translateX(2px);
+  color: var(--text);
 }
 
 .btn{
