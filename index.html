@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Office Board</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="board">
+    <section class="row top">
+      <div class="time-block">
+        <div id="time" class="time">--:--</div>
+        <div id="date" class="date">----</div>
+      </div>
+
+      <div class="weather-block">
+        <div class="weather-line">
+          <span id="weatherTemp" class="weather-temp">--°</span>
+          <span id="weatherDesc" class="weather-desc">Weather</span>
+        </div>
+        <div class="sun-line">
+          <span>Sunrise</span> <span id="sunrise" class="mono">--:--</span>
+          <span class="sep">•</span>
+          <span>Sunset</span> <span id="sunset" class="mono">--:--</span>
+        </div>
+        <div class="meta-line">
+          <span id="locationLabel" class="mono">Arnhem</span>
+          <span class="sep">•</span>
+          <span id="updatedLabel" class="mono">--</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="row quote">
+      <div class="quote-box">
+        <div class="quote-title">Daily quote</div>
+        <div id="quoteText" class="quote-text">—</div>
+        <div id="quoteAuthor" class="quote-author"></div>
+      </div>
+    </section>
+
+    <section class="row bottom">
+      <div class="spotify-box">
+        <div class="spotify-left">
+          <div class="spotify-title">Now playing</div>
+          <div id="spotifyTrack" class="spotify-track">Not connected</div>
+          <div id="spotifyArtist" class="spotify-artist"></div>
+        </div>
+
+        <div class="spotify-right">
+          <button id="spotifyBtn" class="btn">Connect Spotify</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
