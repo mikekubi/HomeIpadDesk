@@ -135,3 +135,72 @@ body{
 .mono{
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+.spotify-title{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+}
+
+.spotify-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color: var(--muted2);
+  border:1px solid #1b1b1b;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:12px;
+  letter-spacing:1px;
+  text-transform:none;
+}
+
+.spotify-badge svg{
+  width:14px;
+  height:14px;
+  fill: var(--muted2);
+}
+
+.spotify-line{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-top:8px;
+}
+
+.spotify-art{
+  width:54px;
+  height:54px;
+  border-radius:12px;
+  border:1px solid #1b1b1b;
+  background:#0b0b0b;
+  object-fit:cover;
+}
+
+.spotify-meta{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+
+.spotify-track{
+  font-size:22px;
+  margin-top:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.spotify-artist, .spotify-album{
+  color:var(--muted);
+  font-size:16px;
+  margin-top:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.spotify-album{
+  color:var(--muted2);
+  font-size:14px;
+}
