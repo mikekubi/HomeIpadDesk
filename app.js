@@ -4,7 +4,7 @@
 
 const SPOTIFY_CLIENT_ID   = "099eefbf36214b4e93d0b19bba79ffc8";
 
-// Arnhem default (you can change lat/lon later)
+// Arnhem default
 const DEFAULT_LAT = 51.9851;
 const DEFAULT_LON = 5.8987;
 const LOCATION_LABEL = "Arnhem";
@@ -15,13 +15,11 @@ const LOCATION_LABEL = "Arnhem";
 const el = (id) => document.getElementById(id);
 const pad2 = (n) => String(n).padStart(2, "0");
 
-function fmtTime(d) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+function fmtTime(d){ return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function fmtDate(d){
+  return d.toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 }
-function fmtDate(d) {
-  return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-}
-function setText(id, text) {
+function setText(id, text){
   const node = el(id);
   if (node) node.textContent = text;
 }
@@ -29,7 +27,7 @@ function setText(id, text) {
 /***************
  * Time loop
  ***************/
-function startClock() {
+function startClock(){
   const tick = () => {
     const now = new Date();
     setText("time", fmtTime(now));
@@ -49,16 +47,16 @@ const LOCAL_QUOTES = [
   { text: "Do the next right thing.", author: "Unknown" }
 ];
 
-function pickDailyLocalQuote() {
+function pickDailyLocalQuote(){
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
   const day = Math.floor((now - start) / (1000 * 60 * 60 * 24));
   return LOCAL_QUOTES[day % LOCAL_QUOTES.length];
 }
 
-async function loadDailyQuote() {
+async function loadDailyQuote(){
   try {
-    const res = await fetch("https://api.quotable.io/random?maxLength=140", { cache: "no-store" });
+    const res = await fetch("https://api.quotable.io/random?maxLength=140", { cache:"no-store" });
     if (!res.ok) throw new Error("Quote fetch failed");
     const data = await res.json();
     setText("quoteText", data.content || pickDailyLocalQuote().text);
@@ -72,7 +70,7 @@ async function loadDailyQuote() {
 }
 
 /***************
- * Weather + sunrise/sunset (Open-Meteo, no key)
+ * Weather + sunrise/sunset (Open-Meteo)
  ***************/
 async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
   setText("locationLabel", LOCATION_LABEL);
@@ -85,24 +83,20 @@ async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
     url.searchParams.set("daily", "sunrise,sunset");
     url.searchParams.set("timezone", "Europe/Amsterdam");
 
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await fetch(url.toString(), { cache:"no-store" });
     if (!res.ok) throw new Error(`Open-Meteo error: ${res.status}`);
 
     const data = await res.json();
-
     const temp = Math.round(data.current?.temperature_2m);
     const code = data.current?.weather_code;
 
     const sunriseISO = data.daily?.sunrise?.[0];
-    const sunsetISO = data.daily?.sunset?.[0];
-
-    const sunrise = sunriseISO ? new Date(sunriseISO) : null;
-    const sunset = sunsetISO ? new Date(sunsetISO) : null;
+    const sunsetISO  = data.daily?.sunset?.[0];
 
     setText("weatherTemp", Number.isFinite(temp) ? `${temp}°` : "--°");
     setText("weatherDesc", weatherCodeToText(code));
-    setText("sunrise", sunrise ? fmtTime(sunrise) : "--:--");
-    setText("sunset", sunset ? fmtTime(sunset) : "--:--");
+    setText("sunrise", sunriseISO ? fmtTime(new Date(sunriseISO)) : "--:--");
+    setText("sunset", sunsetISO ? fmtTime(new Date(sunsetISO)) : "--:--");
     setText("updatedLabel", `Updated ${fmtTime(new Date())}`);
   } catch (err) {
     console.error(err);
@@ -112,25 +106,13 @@ async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
 
 function weatherCodeToText(code) {
   const map = {
-    0: "Clear",
-    1: "Mostly clear",
-    2: "Partly cloudy",
-    3: "Overcast",
-    45: "Fog",
-    48: "Rime fog",
-    51: "Light drizzle",
-    53: "Drizzle",
-    55: "Heavy drizzle",
-    61: "Light rain",
-    63: "Rain",
-    65: "Heavy rain",
-    71: "Light snow",
-    73: "Snow",
-    75: "Heavy snow",
-    80: "Rain showers",
-    81: "Heavy showers",
-    82: "Violent showers",
-    95: "Thunderstorm"
+    0:"Clear",1:"Mostly clear",2:"Partly cloudy",3:"Overcast",
+    45:"Fog",48:"Rime fog",
+    51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",
+    61:"Light rain",63:"Rain",65:"Heavy rain",
+    71:"Light snow",73:"Snow",75:"Heavy snow",
+    80:"Rain showers",81:"Heavy showers",82:"Violent showers",
+    95:"Thunderstorm"
   };
   if (code === null || code === undefined) return "—";
   return map[code] ?? `Weather (${code})`;
@@ -146,9 +128,7 @@ const SPOTIFY_SCOPES = [
 
 function base64UrlEncode(bytes) {
   return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 async function sha256(str) {
@@ -157,22 +137,22 @@ async function sha256(str) {
   return new Uint8Array(digest);
 }
 
-function randomString(len = 64) {
+function randomString(len=64){
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   let out = "";
   const arr = crypto.getRandomValues(new Uint8Array(len));
-  for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
+  for (let i=0; i<len; i++) out += chars[arr[i] % chars.length];
   return out;
 }
 
-function getRedirectUri() {
+function getRedirectUri(){
   return window.location.origin + window.location.pathname;
 }
 
-function store(k, v) { localStorage.setItem(k, v); }
-function load(k) { return localStorage.getItem(k); }
+function store(k,v){ localStorage.setItem(k,v); }
+function load(k){ return localStorage.getItem(k); }
 
-async function spotifyLogin() {
+async function spotifyLogin(){
   if (!SPOTIFY_CLIENT_ID || SPOTIFY_CLIENT_ID.includes("PASTE_")) {
     alert("Add your Spotify Client ID in app.js first.");
     return;
@@ -180,7 +160,6 @@ async function spotifyLogin() {
 
   const verifier = randomString(64);
   const challenge = base64UrlEncode(await sha256(verifier));
-
   store("sp_pkce_verifier", verifier);
 
   const auth = new URL("https://accounts.spotify.com/authorize");
@@ -195,12 +174,11 @@ async function spotifyLogin() {
   window.location.href = auth.toString();
 }
 
-async function spotifyHandleRedirect() {
+async function spotifyHandleRedirect(){
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
   if (!code) return;
 
-  // Clean URL
   window.history.replaceState({}, document.title, window.location.pathname);
 
   const verifier = load("sp_pkce_verifier");
@@ -215,8 +193,8 @@ async function spotifyHandleRedirect() {
   body.set("code_verifier", verifier);
 
   const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method:"POST",
+    headers:{ "Content-Type":"application/x-www-form-urlencoded" },
     body: body.toString()
   });
 
@@ -229,11 +207,10 @@ async function spotifyHandleRedirect() {
   store("sp_access_token", tok.access_token);
   store("sp_refresh_token", tok.refresh_token || "");
   store("sp_token_expires_at", String(Date.now() + (tok.expires_in * 1000)));
-
   setText("spotifyTrack", "Connected ✓");
 }
 
-async function spotifyRefreshIfNeeded() {
+async function spotifyRefreshIfNeeded(){
   const access = load("sp_access_token");
   const refresh = load("sp_refresh_token");
   const exp = Number(load("sp_token_expires_at") || 0);
@@ -250,8 +227,8 @@ async function spotifyRefreshIfNeeded() {
   body.set("refresh_token", refresh);
 
   const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method:"POST",
+    headers:{ "Content-Type":"application/x-www-form-urlencoded" },
     body: body.toString()
   });
 
@@ -264,104 +241,132 @@ async function spotifyRefreshIfNeeded() {
 }
 
 /***************
- * Lyrics (improved matching + auto-scroll)
+ * Synced Lyrics (LRC) + Highlight
  ***************/
-let lastLyricsKey = "";
-let lyricsScrollTimer = null;
-
-function stopLyricsScroll() {
-  if (lyricsScrollTimer) {
-    clearInterval(lyricsScrollTimer);
-    lyricsScrollTimer = null;
-  }
-}
-
-function startLyricsScroll() {
-  stopLyricsScroll();
-  const win = el("lyricsWindow");
-  if (!win) return;
-
-  const maxScroll = win.scrollHeight - win.clientHeight;
-  if (maxScroll <= 2) return;
-
-  let direction = 1;
-  lyricsScrollTimer = setInterval(() => {
-    const max = win.scrollHeight - win.clientHeight;
-    if (max <= 2) return;
-
-    win.scrollTop += 0.5 * direction; // scroll speed
-    if (win.scrollTop >= max) direction = -1;
-    if (win.scrollTop <= 0) direction = 1;
-  }, 30);
-}
+let syncedLyrics = [];          // [{ timeMs, text }]
+let lastTrackIdForLyrics = "";
+let activeLyricIndex = -1;
 
 function normalizeTrackTitle(t) {
   if (!t) return "";
   return t
-    .replace(/\s*\(.*?\)\s*/g, " ")   // remove (...) like (Remastered), (Live)
-    .replace(/\s*\[.*?\]\s*/g, " ")   // remove [...] 
-    .replace(/\s*-\s*.*$/g, "")       // remove " - Remastered 2011" etc.
+    .replace(/\s*\(.*?\)\s*/g, " ")
+    .replace(/\s*\[.*?\]\s*/g, " ")
+    .replace(/\s*-\s*.*$/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-async function fetchLyrics(artist, track) {
-  const primaryArtist = (artist || "").split(",")[0].trim();
-  const cleanTrack = normalizeTrackTitle(track);
+function parseLrcToLines(lrcText) {
+  const lines = [];
+  const regex = /^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)$/;
 
-  const key = `${primaryArtist} — ${cleanTrack}`;
-  if (key === lastLyricsKey) return;
-  lastLyricsKey = key;
+  for (const raw of lrcText.split("\n")) {
+    const line = raw.trim();
+    const m = line.match(regex);
+    if (!m) continue;
 
-  setText("spotifyLyrics", "Loading lyrics…");
-  const win = el("lyricsWindow");
-  if (win) win.scrollTop = 0;
-  stopLyricsScroll();
+    const mm = Number(m[1]);
+    const ss = Number(m[2]);
+    const frac = m[3] ? m[3].padEnd(3, "0") : "000";
+    const text = (m[4] || "").trim();
 
-  const attempts = [
-    { a: primaryArtist, t: cleanTrack },
-    { a: primaryArtist, t: track }
-  ];
-
-  for (const at of attempts) {
-    try {
-      const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(at.a)}/${encodeURIComponent(at.t)}`;
-      const res = await fetch(url, { cache: "no-store" });
-
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const lyrics = (data?.lyrics || "").trim();
-      if (!lyrics) continue;
-
-      const clipped = lyrics.length > 2500 ? (lyrics.slice(0, 2500) + "\n…") : lyrics;
-      setText("spotifyLyrics", clipped);
-
-      setTimeout(startLyricsScroll, 150);
-      return;
-    } catch (err) {
-      // try next attempt
-      console.error(err);
-    }
+    const timeMs = (mm * 60 + ss) * 1000 + Number(frac);
+    if (text) lines.push({ timeMs, text });
   }
 
-  setText("spotifyLyrics", "Lyrics unavailable for this track");
+  lines.sort((a, b) => a.timeMs - b.timeMs);
+  return lines;
+}
+
+function renderLyricsLines(lines) {
+  const container = el("spotifyLyrics");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  if (!lines.length) {
+    container.textContent = "Synced lyrics unavailable for this track";
+    return;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const div = document.createElement("div");
+    div.className = "lyric-line";
+    div.dataset.idx = String(i);
+    div.textContent = lines[i].text;
+    container.appendChild(div);
+  }
+}
+
+function setActiveLyricByTime(progressMs) {
+  if (!syncedLyrics.length) return;
+
+  let idx = 0;
+  while (idx + 1 < syncedLyrics.length && syncedLyrics[idx + 1].timeMs <= progressMs) idx++;
+
+  if (idx === activeLyricIndex) return;
+  activeLyricIndex = idx;
+
+  const container = el("spotifyLyrics");
+  if (!container) return;
+
+  container.querySelectorAll(".lyric-line.active").forEach(n => n.classList.remove("active"));
+  const active = container.querySelector(`.lyric-line[data-idx="${idx}"]`);
+
+  if (active) {
+    active.classList.add("active");
+
+    const win = el("lyricsWindow");
+    if (win) {
+      const top = active.offsetTop - win.clientHeight * 0.4;
+      win.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    }
+  }
+}
+
+async function fetchSyncedLyricsLRCLIB(artist, track) {
+  const cleanArtist = (artist || "").split(",")[0].trim();
+  const cleanTrack = normalizeTrackTitle(track);
+
+  const searchUrl =
+    `https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+
+  const res = await fetch(searchUrl, { cache: "no-store" });
+  if (!res.ok) return [];
+
+  const results = await res.json();
+  if (!Array.isArray(results) || results.length === 0) return [];
+
+  const best = results[0];
+  const lrc = best.syncedLyrics || best.synced_lyrics || best.lrc || "";
+  if (!lrc) return [];
+
+  return parseLrcToLines(lrc);
 }
 
 /***************
- * Now Playing (with album art + lyrics)
+ * Now Playing (progress-aware)
  ***************/
-async function spotifyNowPlaying() {
+async function spotifyNowPlaying(){
   let access = await spotifyRefreshIfNeeded();
 
   const clearSpotifyUI = (trackText) => {
     setText("spotifyTrack", trackText);
     setText("spotifyArtist", "");
     setText("spotifyAlbum", "");
-    setText("spotifyLyrics", "Lyrics will show here (when available).");
+
+    syncedLyrics = [];
+    lastTrackIdForLyrics = "";
+    activeLyricIndex = -1;
+
+    const lyricsEl = el("spotifyLyrics");
+    if (lyricsEl) {
+      lyricsEl.innerHTML = "";
+      lyricsEl.textContent = "Lyrics will show here (when available).";
+    }
     const win = el("lyricsWindow");
     if (win) win.scrollTop = 0;
-    stopLyricsScroll();
 
     const artEl = el("spotifyArt");
     if (artEl) {
@@ -376,16 +381,16 @@ async function spotifyNowPlaying() {
     return;
   }
 
-  let res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+  let res = await fetch("https://api.spotify.com/v1/me/player", {
     headers: { Authorization: `Bearer ${access}` },
     cache: "no-store"
   });
 
-  // 401 recovery: force refresh once and retry
+  // 401 recovery
   if (res.status === 401) {
     store("sp_token_expires_at", "0");
     access = await spotifyRefreshIfNeeded();
-    res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    res = await fetch("https://api.spotify.com/v1/me/player", {
       headers: { Authorization: `Bearer ${access}` },
       cache: "no-store"
     });
@@ -402,8 +407,10 @@ async function spotifyNowPlaying() {
   }
 
   const data = await res.json();
-  const item = data?.item;
+  const progressMs = Number(data.progress_ms ?? 0);
 
+  const item = data.item;
+  const trackId = item?.id || "";
   const track = item?.name ?? "—";
   const artist = item?.artists?.map(a => a.name).join(", ") ?? "";
   const album = item?.album?.name ?? "";
@@ -424,19 +431,39 @@ async function spotifyNowPlaying() {
     artEl.alt = "";
   }
 
-  // Fetch lyrics (improved matching)
-  if (artist && track) fetchLyrics(artist, track);
+  // Fetch synced lyrics only when track changes
+  if (trackId && trackId !== lastTrackIdForLyrics) {
+    lastTrackIdForLyrics = trackId;
+    activeLyricIndex = -1;
+
+    const lyricsEl = el("spotifyLyrics");
+    if (lyricsEl) lyricsEl.textContent = "Loading synced lyrics…";
+    const win = el("lyricsWindow");
+    if (win) win.scrollTop = 0;
+
+    try {
+      syncedLyrics = await fetchSyncedLyricsLRCLIB(artist, track);
+      renderLyricsLines(syncedLyrics);
+    } catch (e) {
+      syncedLyrics = [];
+      if (lyricsEl) lyricsEl.textContent = "Synced lyrics unavailable for this track";
+    }
+  }
+
+  // Highlight based on Spotify progress (freezes when paused)
+  if (syncedLyrics.length) setActiveLyricByTime(progressMs);
 }
 
-function startSpotifyLoop() {
+function startSpotifyLoop(){
   spotifyNowPlaying();
-  setInterval(spotifyNowPlaying, 10_000);
+  // 1s polling makes highlighting smooth
+  setInterval(spotifyNowPlaying, 1000);
 }
 
 /***************
  * Boot
  ***************/
-async function boot() {
+async function boot(){
   startClock();
   await loadDailyQuote();
   await loadWeather();
@@ -447,10 +474,7 @@ async function boot() {
 
   startSpotifyLoop();
 
-  // Quote refresh hourly
   setInterval(loadDailyQuote, 60 * 60 * 1000);
-
-  // Weather refresh every 10 minutes
   setInterval(loadWeather, 10 * 60 * 1000);
 }
 
