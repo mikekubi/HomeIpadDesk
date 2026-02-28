@@ -283,7 +283,7 @@ function renderCurrentLyric(text) {
   const container = el("spotifyLyrics");
   if (!container) return;
 
-  // Small fade when the line changes
+  // Fade on change
   container.style.opacity = "0";
   setTimeout(() => {
     container.textContent = text || "";
@@ -324,10 +324,11 @@ async function fetchSyncedLyricsLRCLIB(artist, track) {
 }
 
 /***************
- * Now Playing (progress-aware)
+ * Now Playing (progress-aware) + Hide Connect button when connected
  ***************/
 async function spotifyNowPlaying(){
   let access = await spotifyRefreshIfNeeded();
+  const btn = el("spotifyBtn");
 
   const clearSpotifyUI = (trackText) => {
     setText("spotifyTrack", trackText);
@@ -345,12 +346,18 @@ async function spotifyNowPlaying(){
       artEl.removeAttribute("src");
       artEl.alt = "";
     }
+
+    // show the button if we are not connected
+    if (btn) btn.style.display = "block";
   };
 
   if (!access) {
     clearSpotifyUI("Not connected");
     return;
   }
+
+  // If we have a token, hide the connect button
+  if (btn) btn.style.display = "none";
 
   let res = await fetch("https://api.spotify.com/v1/me/player", {
     headers: { Authorization: `Bearer ${access}` },
@@ -413,22 +420,20 @@ async function spotifyNowPlaying(){
       if (!syncedLyrics.length) {
         renderCurrentLyric("Synced lyrics unavailable for this track");
       } else {
-        // Render the first line initially
         renderCurrentLyric(syncedLyrics[0].text);
       }
-    } catch (e) {
+    } catch {
       syncedLyrics = [];
       renderCurrentLyric("Synced lyrics unavailable for this track");
     }
   }
 
-  // Highlight based on Spotify progress (freezes when paused)
+  // Sync line to current progress (freezes when paused)
   if (syncedLyrics.length) setActiveLyricByTime(progressMs);
 }
 
 function startSpotifyLoop(){
   spotifyNowPlaying();
-  // 1s polling makes the lyric line feel in-sync
   setInterval(spotifyNowPlaying, 1000);
 }
 
