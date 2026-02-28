@@ -15,18 +15,21 @@ const LOCATION_LABEL = "Arnhem";
 const el = (id) => document.getElementById(id);
 const pad2 = (n) => String(n).padStart(2, "0");
 
-function fmtTime(d){
+function fmtTime(d) {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
-function fmtDate(d){
-  return d.toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+function fmtDate(d) {
+  return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
-function setText(id, text){ el(id).textContent = text; }
+function setText(id, text) {
+  const node = el(id);
+  if (node) node.textContent = text;
+}
 
 /***************
  * Time loop
  ***************/
-function startClock(){
+function startClock() {
   const tick = () => {
     const now = new Date();
     setText("time", fmtTime(now));
@@ -46,14 +49,14 @@ const LOCAL_QUOTES = [
   { text: "Do the next right thing.", author: "Unknown" }
 ];
 
-function pickDailyLocalQuote(){
+function pickDailyLocalQuote() {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
   const day = Math.floor((now - start) / (1000 * 60 * 60 * 24));
   return LOCAL_QUOTES[day % LOCAL_QUOTES.length];
 }
 
-async function loadDailyQuote(){
+async function loadDailyQuote() {
   try {
     const res = await fetch("https://api.quotable.io/random?maxLength=140", { cache: "no-store" });
     if (!res.ok) throw new Error("Quote fetch failed");
@@ -91,10 +94,10 @@ async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
     const code = data.current?.weather_code;
 
     const sunriseISO = data.daily?.sunrise?.[0];
-    const sunsetISO  = data.daily?.sunset?.[0];
+    const sunsetISO = data.daily?.sunset?.[0];
 
     const sunrise = sunriseISO ? new Date(sunriseISO) : null;
-    const sunset  = sunsetISO  ? new Date(sunsetISO)  : null;
+    const sunset = sunsetISO ? new Date(sunsetISO) : null;
 
     setText("weatherTemp", Number.isFinite(temp) ? `${temp}°` : "--°");
     setText("weatherDesc", weatherCodeToText(code));
@@ -129,7 +132,6 @@ function weatherCodeToText(code) {
     82: "Violent showers",
     95: "Thunderstorm"
   };
-
   if (code === null || code === undefined) return "—";
   return map[code] ?? `Weather (${code})`;
 }
@@ -144,7 +146,9 @@ const SPOTIFY_SCOPES = [
 
 function base64UrlEncode(bytes) {
   return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 async function sha256(str) {
@@ -153,22 +157,22 @@ async function sha256(str) {
   return new Uint8Array(digest);
 }
 
-function randomString(len=64){
+function randomString(len = 64) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   let out = "";
   const arr = crypto.getRandomValues(new Uint8Array(len));
-  for (let i=0; i<len; i++) out += chars[arr[i] % chars.length];
+  for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
   return out;
 }
 
-function getRedirectUri(){
+function getRedirectUri() {
   return window.location.origin + window.location.pathname;
 }
 
-function store(k,v){ localStorage.setItem(k,v); }
-function load(k){ return localStorage.getItem(k); }
+function store(k, v) { localStorage.setItem(k, v); }
+function load(k) { return localStorage.getItem(k); }
 
-async function spotifyLogin(){
+async function spotifyLogin() {
   if (!SPOTIFY_CLIENT_ID || SPOTIFY_CLIENT_ID.includes("PASTE_")) {
     alert("Add your Spotify Client ID in app.js first.");
     return;
@@ -191,7 +195,7 @@ async function spotifyLogin(){
   window.location.href = auth.toString();
 }
 
-async function spotifyHandleRedirect(){
+async function spotifyHandleRedirect() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
   if (!code) return;
@@ -229,7 +233,7 @@ async function spotifyHandleRedirect(){
   setText("spotifyTrack", "Connected ✓");
 }
 
-async function spotifyRefreshIfNeeded(){
+async function spotifyRefreshIfNeeded() {
   const access = load("sp_access_token");
   const refresh = load("sp_refresh_token");
   const exp = Number(load("sp_token_expires_at") || 0);
@@ -260,43 +264,52 @@ async function spotifyRefreshIfNeeded(){
 }
 
 /***************
- * Lyrics (auto-scroll)
+ * Lyrics (improved matching + auto-scroll)
  ***************/
 let lastLyricsKey = "";
 let lyricsScrollTimer = null;
 
-function stopLyricsScroll(){
+function stopLyricsScroll() {
   if (lyricsScrollTimer) {
     clearInterval(lyricsScrollTimer);
     lyricsScrollTimer = null;
   }
 }
 
-function startLyricsScroll(){
+function startLyricsScroll() {
   stopLyricsScroll();
-
   const win = el("lyricsWindow");
   if (!win) return;
 
-  // Smooth, slow scroll: increment scrollTop continuously
-  // If content fits, we don't scroll.
   const maxScroll = win.scrollHeight - win.clientHeight;
   if (maxScroll <= 2) return;
 
-  let direction = 1; // 1 down, -1 up
+  let direction = 1;
   lyricsScrollTimer = setInterval(() => {
-    // If user isn't at top due to refresh, normalize
     const max = win.scrollHeight - win.clientHeight;
     if (max <= 2) return;
 
-    win.scrollTop += 0.5 * direction; // speed (lower = slower)
+    win.scrollTop += 0.5 * direction; // scroll speed
     if (win.scrollTop >= max) direction = -1;
     if (win.scrollTop <= 0) direction = 1;
   }, 30);
 }
 
-async function fetchLyrics(artist, track){
-  const key = `${artist} — ${track}`;
+function normalizeTrackTitle(t) {
+  if (!t) return "";
+  return t
+    .replace(/\s*\(.*?\)\s*/g, " ")   // remove (...) like (Remastered), (Live)
+    .replace(/\s*\[.*?\]\s*/g, " ")   // remove [...] 
+    .replace(/\s*-\s*.*$/g, "")       // remove " - Remastered 2011" etc.
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function fetchLyrics(artist, track) {
+  const primaryArtist = (artist || "").split(",")[0].trim();
+  const cleanTrack = normalizeTrackTitle(track);
+
+  const key = `${primaryArtist} — ${cleanTrack}`;
   if (key === lastLyricsKey) return;
   lastLyricsKey = key;
 
@@ -305,39 +318,40 @@ async function fetchLyrics(artist, track){
   if (win) win.scrollTop = 0;
   stopLyricsScroll();
 
-  try {
-    const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(track)}`;
-    const res = await fetch(url, { cache: "no-store" });
+  const attempts = [
+    { a: primaryArtist, t: cleanTrack },
+    { a: primaryArtist, t: track }
+  ];
 
-    if (!res.ok) {
-      setText("spotifyLyrics", "Lyrics unavailable");
+  for (const at of attempts) {
+    try {
+      const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(at.a)}/${encodeURIComponent(at.t)}`;
+      const res = await fetch(url, { cache: "no-store" });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const lyrics = (data?.lyrics || "").trim();
+      if (!lyrics) continue;
+
+      const clipped = lyrics.length > 2500 ? (lyrics.slice(0, 2500) + "\n…") : lyrics;
+      setText("spotifyLyrics", clipped);
+
+      setTimeout(startLyricsScroll, 150);
       return;
+    } catch (err) {
+      // try next attempt
+      console.error(err);
     }
-
-    const data = await res.json();
-    const lyrics = (data?.lyrics || "").trim();
-
-    if (!lyrics) {
-      setText("spotifyLyrics", "Lyrics unavailable");
-      return;
-    }
-
-    // Limit extremely long lyrics to keep UI sane
-    const clipped = lyrics.length > 2500 ? (lyrics.slice(0, 2500) + "\n…") : lyrics;
-    setText("spotifyLyrics", clipped);
-
-    // Allow layout to update before starting scroll
-    setTimeout(startLyricsScroll, 150);
-  } catch (err) {
-    console.error(err);
-    setText("spotifyLyrics", "Lyrics unavailable");
   }
+
+  setText("spotifyLyrics", "Lyrics unavailable for this track");
 }
 
 /***************
- * Now Playing (with album art)
+ * Now Playing (with album art + lyrics)
  ***************/
-async function spotifyNowPlaying(){
+async function spotifyNowPlaying() {
   let access = await spotifyRefreshIfNeeded();
 
   const clearSpotifyUI = (trackText) => {
@@ -410,11 +424,11 @@ async function spotifyNowPlaying(){
     artEl.alt = "";
   }
 
-  // Fetch lyrics only when track changes (handled inside fetchLyrics)
+  // Fetch lyrics (improved matching)
   if (artist && track) fetchLyrics(artist, track);
 }
 
-function startSpotifyLoop(){
+function startSpotifyLoop() {
   spotifyNowPlaying();
   setInterval(spotifyNowPlaying, 10_000);
 }
@@ -422,17 +436,18 @@ function startSpotifyLoop(){
 /***************
  * Boot
  ***************/
-async function boot(){
+async function boot() {
   startClock();
   await loadDailyQuote();
   await loadWeather();
   await spotifyHandleRedirect();
 
-  el("spotifyBtn").addEventListener("click", spotifyLogin);
+  const btn = el("spotifyBtn");
+  if (btn) btn.addEventListener("click", spotifyLogin);
 
   startSpotifyLoop();
 
-  // Quote refresh hourly (still "daily" vibe, but keeps it fresh)
+  // Quote refresh hourly
   setInterval(loadDailyQuote, 60 * 60 * 1000);
 
   // Weather refresh every 10 minutes
