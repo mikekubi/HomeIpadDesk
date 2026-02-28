@@ -4,7 +4,7 @@
 
 const SPOTIFY_CLIENT_ID   = "099eefbf36214b4e93d0b19bba79ffc8";
 
-// Arnhem default (you can switch to navigator.geolocation if you want)
+// Arnhem default (you can change lat/lon later)
 const DEFAULT_LAT = 51.9851;
 const DEFAULT_LON = 5.8987;
 const LOCATION_LABEL = "Arnhem";
@@ -21,7 +21,6 @@ function fmtTime(d){
 function fmtDate(d){
   return d.toLocaleDateString(undefined, { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 }
-
 function setText(id, text){ el(id).textContent = text; }
 
 /***************
@@ -38,25 +37,39 @@ function startClock(){
 }
 
 /***************
- * Quotes (daily)
+ * Quotes (API + local fallback)
  ***************/
+const LOCAL_QUOTES = [
+  { text: "Stay curious. Stay building.", author: "" },
+  { text: "Small steps, done daily, become big change.", author: "Unknown" },
+  { text: "Simplicity is a form of discipline.", author: "Unknown" },
+  { text: "Do the next right thing.", author: "Unknown" }
+];
+
+function pickDailyLocalQuote(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const day = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  return LOCAL_QUOTES[day % LOCAL_QUOTES.length];
+}
+
 async function loadDailyQuote(){
   try {
-    const res = await fetch("https://api.quotable.io/random?maxLength=140");
+    const res = await fetch("https://api.quotable.io/random?maxLength=140", { cache: "no-store" });
     if (!res.ok) throw new Error("Quote fetch failed");
-
     const data = await res.json();
-    setText("quoteText", data.content || "—");
+    setText("quoteText", data.content || pickDailyLocalQuote().text);
     setText("quoteAuthor", data.author ? `— ${data.author}` : "");
   } catch (err) {
     console.error(err);
-    setText("quoteText", "Stay curious. Stay building.");
-    setText("quoteAuthor", "");
+    const q = pickDailyLocalQuote();
+    setText("quoteText", q.text);
+    setText("quoteAuthor", q.author ? `— ${q.author}` : "");
   }
 }
 
 /***************
- * Weather + sunrise/sunset (OpenWeather)
+ * Weather + sunrise/sunset (Open-Meteo, no key)
  ***************/
 async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
   setText("locationLabel", LOCATION_LABEL);
@@ -100,9 +113,20 @@ function weatherCodeToText(code) {
     1: "Mostly clear",
     2: "Partly cloudy",
     3: "Overcast",
-    61: "Rain",
-    63: "Heavy rain",
-    71: "Snow",
+    45: "Fog",
+    48: "Rime fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Heavy drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    80: "Rain showers",
+    81: "Heavy showers",
+    82: "Violent showers",
     95: "Thunderstorm"
   };
 
@@ -112,8 +136,6 @@ function weatherCodeToText(code) {
 
 /***************
  * Spotify PKCE (client-only)
- * - No client secret needed
- * - Token stored in localStorage
  ***************/
 const SPOTIFY_SCOPES = [
   "user-read-currently-playing",
@@ -140,8 +162,6 @@ function randomString(len=64){
 }
 
 function getRedirectUri(){
-  // must match exactly what you put in Spotify app settings
-  // For GitHub pages root:
   return window.location.origin + window.location.pathname;
 }
 
@@ -215,9 +235,9 @@ async function spotifyRefreshIfNeeded(){
   const exp = Number(load("sp_token_expires_at") || 0);
 
   if (!access) return null;
-  if (Date.now() < exp - 30_000) return access; // still valid
+  if (Date.now() < exp - 30_000) return access;
 
-  if (!refresh) return access; // cannot refresh; hope it works
+  if (!refresh) return access;
 
   const tokenUrl = "https://accounts.spotify.com/api/token";
   const body = new URLSearchParams();
@@ -239,14 +259,97 @@ async function spotifyRefreshIfNeeded(){
   return tok.access_token;
 }
 
-async function spotifyNowPlaying() {
+/***************
+ * Lyrics (auto-scroll)
+ ***************/
+let lastLyricsKey = "";
+let lyricsScrollTimer = null;
+
+function stopLyricsScroll(){
+  if (lyricsScrollTimer) {
+    clearInterval(lyricsScrollTimer);
+    lyricsScrollTimer = null;
+  }
+}
+
+function startLyricsScroll(){
+  stopLyricsScroll();
+
+  const win = el("lyricsWindow");
+  if (!win) return;
+
+  // Smooth, slow scroll: increment scrollTop continuously
+  // If content fits, we don't scroll.
+  const maxScroll = win.scrollHeight - win.clientHeight;
+  if (maxScroll <= 2) return;
+
+  let direction = 1; // 1 down, -1 up
+  lyricsScrollTimer = setInterval(() => {
+    // If user isn't at top due to refresh, normalize
+    const max = win.scrollHeight - win.clientHeight;
+    if (max <= 2) return;
+
+    win.scrollTop += 0.5 * direction; // speed (lower = slower)
+    if (win.scrollTop >= max) direction = -1;
+    if (win.scrollTop <= 0) direction = 1;
+  }, 30);
+}
+
+async function fetchLyrics(artist, track){
+  const key = `${artist} — ${track}`;
+  if (key === lastLyricsKey) return;
+  lastLyricsKey = key;
+
+  setText("spotifyLyrics", "Loading lyrics…");
+  const win = el("lyricsWindow");
+  if (win) win.scrollTop = 0;
+  stopLyricsScroll();
+
+  try {
+    const url = `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(track)}`;
+    const res = await fetch(url, { cache: "no-store" });
+
+    if (!res.ok) {
+      setText("spotifyLyrics", "Lyrics unavailable");
+      return;
+    }
+
+    const data = await res.json();
+    const lyrics = (data?.lyrics || "").trim();
+
+    if (!lyrics) {
+      setText("spotifyLyrics", "Lyrics unavailable");
+      return;
+    }
+
+    // Limit extremely long lyrics to keep UI sane
+    const clipped = lyrics.length > 2500 ? (lyrics.slice(0, 2500) + "\n…") : lyrics;
+    setText("spotifyLyrics", clipped);
+
+    // Allow layout to update before starting scroll
+    setTimeout(startLyricsScroll, 150);
+  } catch (err) {
+    console.error(err);
+    setText("spotifyLyrics", "Lyrics unavailable");
+  }
+}
+
+/***************
+ * Now Playing (with album art)
+ ***************/
+async function spotifyNowPlaying(){
   let access = await spotifyRefreshIfNeeded();
 
   const clearSpotifyUI = (trackText) => {
     setText("spotifyTrack", trackText);
     setText("spotifyArtist", "");
     setText("spotifyAlbum", "");
-    const artEl = document.getElementById("spotifyArt");
+    setText("spotifyLyrics", "Lyrics will show here (when available).");
+    const win = el("lyricsWindow");
+    if (win) win.scrollTop = 0;
+    stopLyricsScroll();
+
+    const artEl = el("spotifyArt");
     if (artEl) {
       artEl.style.display = "none";
       artEl.removeAttribute("src");
@@ -264,11 +367,10 @@ async function spotifyNowPlaying() {
     cache: "no-store"
   });
 
-  // If token expired/invalid, force refresh once and retry
+  // 401 recovery: force refresh once and retry
   if (res.status === 401) {
     store("sp_token_expires_at", "0");
     access = await spotifyRefreshIfNeeded();
-
     res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
       headers: { Authorization: `Bearer ${access}` },
       cache: "no-store"
@@ -297,22 +399,22 @@ async function spotifyNowPlaying() {
   setText("spotifyArtist", artist);
   setText("spotifyAlbum", album);
 
-  const artEl = document.getElementById("spotifyArt");
-  if (artEl) {
-    if (artUrl) {
-      artEl.src = artUrl;
-      artEl.alt = album ? `Album art: ${album}` : "Album art";
-      artEl.style.display = "block";
-    } else {
-      artEl.style.display = "none";
-      artEl.removeAttribute("src");
-      artEl.alt = "";
-    }
+  const artEl = el("spotifyArt");
+  if (artEl && artUrl) {
+    artEl.src = artUrl;
+    artEl.alt = album ? `Album art: ${album}` : "Album art";
+    artEl.style.display = "block";
+  } else if (artEl) {
+    artEl.style.display = "none";
+    artEl.removeAttribute("src");
+    artEl.alt = "";
   }
+
+  // Fetch lyrics only when track changes (handled inside fetchLyrics)
+  if (artist && track) fetchLyrics(artist, track);
 }
 
 function startSpotifyLoop(){
-  // Update every 10s
   spotifyNowPlaying();
   setInterval(spotifyNowPlaying, 10_000);
 }
@@ -325,13 +427,15 @@ async function boot(){
   await loadDailyQuote();
   await loadWeather();
   await spotifyHandleRedirect();
-  startSpotifyLoop();
 
   el("spotifyBtn").addEventListener("click", spotifyLogin);
 
-  // Refresh quote once per hour (it will still be daily-indexed)
+  startSpotifyLoop();
+
+  // Quote refresh hourly (still "daily" vibe, but keeps it fresh)
   setInterval(loadDailyQuote, 60 * 60 * 1000);
-  // Refresh weather every 10 minutes
+
+  // Weather refresh every 10 minutes
   setInterval(loadWeather, 10 * 60 * 1000);
 }
 
