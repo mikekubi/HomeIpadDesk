@@ -1,7 +1,7 @@
 /***************
  * CONFIG
  ***************/
-const OPENWEATHER_API_KEY = "de1bae0f43adc5830a584c08a6d2fe92";
+const OPENWEATHER_API_KEY = "e138fa6086ffe11f8ef07b2ce90f5635";
 const SPOTIFY_CLIENT_ID   = "PASTE_SPOTIFY_CLIENT_ID_HERE";
 
 // Arnhem default (you can switch to navigator.geolocation if you want)
