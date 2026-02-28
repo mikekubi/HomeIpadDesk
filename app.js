@@ -117,7 +117,8 @@ function weatherCodeToText(code) {
  ***************/
 const SPOTIFY_SCOPES = [
   "user-read-currently-playing",
-  "user-read-playback-state"
+  "user-read-playback-state",
+  "offline_access"
 ];
 
 function base64UrlEncode(bytes) {
@@ -239,37 +240,76 @@ async function spotifyRefreshIfNeeded(){
   return tok.access_token;
 }
 
-async function spotifyNowPlaying(){
-  const access = await spotifyRefreshIfNeeded();
-  if (!access) {
-    setText("spotifyTrack", "Not connected");
+async function spotifyNowPlaying() {
+  let access = await spotifyRefreshIfNeeded();
+
+  const clearSpotifyUI = (trackText) => {
+    setText("spotifyTrack", trackText);
     setText("spotifyArtist", "");
+    setText("spotifyAlbum", "");
+    const artEl = document.getElementById("spotifyArt");
+    if (artEl) {
+      artEl.style.display = "none";
+      artEl.removeAttribute("src");
+      artEl.alt = "";
+    }
+  };
+
+  if (!access) {
+    clearSpotifyUI("Not connected");
     return;
   }
 
-  const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-    headers: { "Authorization": `Bearer ${access}` },
+  let res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    headers: { Authorization: `Bearer ${access}` },
     cache: "no-store"
   });
 
+  // If token expired/invalid, force refresh once and retry
+  if (res.status === 401) {
+    store("sp_token_expires_at", "0");
+    access = await spotifyRefreshIfNeeded();
+
+    res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+      headers: { Authorization: `Bearer ${access}` },
+      cache: "no-store"
+    });
+  }
+
   if (res.status === 204) {
-    setText("spotifyTrack", "Nothing playing");
-    setText("spotifyArtist", "");
+    clearSpotifyUI("Nothing playing");
     return;
   }
+
   if (!res.ok) {
-    setText("spotifyTrack", "Spotify unavailable");
-    setText("spotifyArtist", "");
+    clearSpotifyUI("Spotify unavailable");
     return;
   }
 
   const data = await res.json();
   const item = data?.item;
+
   const track = item?.name ?? "—";
   const artist = item?.artists?.map(a => a.name).join(", ") ?? "";
+  const album = item?.album?.name ?? "";
+  const artUrl = item?.album?.images?.[0]?.url ?? "";
 
   setText("spotifyTrack", track);
   setText("spotifyArtist", artist);
+  setText("spotifyAlbum", album);
+
+  const artEl = document.getElementById("spotifyArt");
+  if (artEl) {
+    if (artUrl) {
+      artEl.src = artUrl;
+      artEl.alt = album ? `Album art: ${album}` : "Album art";
+      artEl.style.display = "block";
+    } else {
+      artEl.style.display = "none";
+      artEl.removeAttribute("src");
+      artEl.alt = "";
+    }
+  }
 }
 
 function startSpotifyLoop(){
