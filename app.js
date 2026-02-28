@@ -117,8 +117,7 @@ function weatherCodeToText(code) {
  ***************/
 const SPOTIFY_SCOPES = [
   "user-read-currently-playing",
-  "user-read-playback-state",
-  "offline_access"
+  "user-read-playback-state"
 ];
 
 function base64UrlEncode(bytes) {
