@@ -241,9 +241,9 @@ async function spotifyRefreshIfNeeded(){
 }
 
 /***************
- * Synced Lyrics (LRC) + Highlight
+ * Synced Lyrics (Single Line Display)
  ***************/
-let syncedLyrics = [];          // [{ timeMs, text }]
+let syncedLyrics = [];
 let lastTrackIdForLyrics = "";
 let activeLyricIndex = -1;
 
@@ -279,24 +279,16 @@ function parseLrcToLines(lrcText) {
   return lines;
 }
 
-function renderLyricsLines(lines) {
+function renderCurrentLyric(text) {
   const container = el("spotifyLyrics");
   if (!container) return;
 
-  container.innerHTML = "";
-
-  if (!lines.length) {
-    container.textContent = "Synced lyrics unavailable for this track";
-    return;
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const div = document.createElement("div");
-    div.className = "lyric-line";
-    div.dataset.idx = String(i);
-    div.textContent = lines[i].text;
-    container.appendChild(div);
-  }
+  // Small fade when the line changes
+  container.style.opacity = "0";
+  setTimeout(() => {
+    container.textContent = text || "";
+    container.style.opacity = "1";
+  }, 120);
 }
 
 function setActiveLyricByTime(progressMs) {
@@ -308,21 +300,7 @@ function setActiveLyricByTime(progressMs) {
   if (idx === activeLyricIndex) return;
   activeLyricIndex = idx;
 
-  const container = el("spotifyLyrics");
-  if (!container) return;
-
-  container.querySelectorAll(".lyric-line.active").forEach(n => n.classList.remove("active"));
-  const active = container.querySelector(`.lyric-line[data-idx="${idx}"]`);
-
-  if (active) {
-    active.classList.add("active");
-
-    const win = el("lyricsWindow");
-    if (win) {
-      const top = active.offsetTop - win.clientHeight * 0.4;
-      win.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-    }
-  }
+  renderCurrentLyric(syncedLyrics[idx].text);
 }
 
 async function fetchSyncedLyricsLRCLIB(artist, track) {
@@ -359,14 +337,7 @@ async function spotifyNowPlaying(){
     syncedLyrics = [];
     lastTrackIdForLyrics = "";
     activeLyricIndex = -1;
-
-    const lyricsEl = el("spotifyLyrics");
-    if (lyricsEl) {
-      lyricsEl.innerHTML = "";
-      lyricsEl.textContent = "Lyrics will show here (when available).";
-    }
-    const win = el("lyricsWindow");
-    if (win) win.scrollTop = 0;
+    renderCurrentLyric("Lyrics will show here (when available).");
 
     const artEl = el("spotifyArt");
     if (artEl) {
@@ -435,18 +406,19 @@ async function spotifyNowPlaying(){
   if (trackId && trackId !== lastTrackIdForLyrics) {
     lastTrackIdForLyrics = trackId;
     activeLyricIndex = -1;
-
-    const lyricsEl = el("spotifyLyrics");
-    if (lyricsEl) lyricsEl.textContent = "Loading synced lyrics…";
-    const win = el("lyricsWindow");
-    if (win) win.scrollTop = 0;
+    renderCurrentLyric("Loading synced lyrics…");
 
     try {
       syncedLyrics = await fetchSyncedLyricsLRCLIB(artist, track);
-      renderLyricsLines(syncedLyrics);
+      if (!syncedLyrics.length) {
+        renderCurrentLyric("Synced lyrics unavailable for this track");
+      } else {
+        // Render the first line initially
+        renderCurrentLyric(syncedLyrics[0].text);
+      }
     } catch (e) {
       syncedLyrics = [];
-      if (lyricsEl) lyricsEl.textContent = "Synced lyrics unavailable for this track";
+      renderCurrentLyric("Synced lyrics unavailable for this track");
     }
   }
 
@@ -456,7 +428,7 @@ async function spotifyNowPlaying(){
 
 function startSpotifyLoop(){
   spotifyNowPlaying();
-  // 1s polling makes highlighting smooth
+  // 1s polling makes the lyric line feel in-sync
   setInterval(spotifyNowPlaying, 1000);
 }
 
