@@ -1,7 +1,7 @@
 /***************
  * CONFIG
  ***************/
-const OPENWEATHER_API_KEY = "de1bae0f43adc5830a584c08a6d2fe92";
+
 const SPOTIFY_CLIENT_ID   = "099eefbf36214b4e93d0b19bba79ffc8";
 
 // Arnhem default (you can switch to navigator.geolocation if you want)
@@ -58,40 +58,56 @@ async function loadDailyQuote(){
 /***************
  * Weather + sunrise/sunset (OpenWeather)
  ***************/
-async function loadWeather(lat=DEFAULT_LAT, lon=DEFAULT_LON){
+async function loadWeather(lat = DEFAULT_LAT, lon = DEFAULT_LON) {
   setText("locationLabel", LOCATION_LABEL);
 
-  if (!OPENWEATHER_API_KEY || OPENWEATHER_API_KEY.includes("PASTE_")) {
-    setText("weatherDesc", "Add OpenWeather API key");
-    return;
-  }
+  try {
+    const url = new URL("https://api.open-meteo.com/v1/forecast");
+    url.searchParams.set("latitude", String(lat));
+    url.searchParams.set("longitude", String(lon));
+    url.searchParams.set("current", "temperature_2m,weather_code");
+    url.searchParams.set("daily", "sunrise,sunset");
+    url.searchParams.set("timezone", "Europe/Amsterdam");
 
-  // Current weather endpoint
-  const url = new URL("https://api.openweathermap.org/data/2.5/weather");
-  url.searchParams.set("lat", String(lat));
-  url.searchParams.set("lon", String(lon));
-  url.searchParams.set("appid", OPENWEATHER_API_KEY);
-  url.searchParams.set("units", "metric");
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) throw new Error(`Open-Meteo error: ${res.status}`);
 
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
+    const data = await res.json();
+
+    const temp = Math.round(data.current?.temperature_2m);
+    const code = data.current?.weather_code;
+
+    const sunriseISO = data.daily?.sunrise?.[0];
+    const sunsetISO  = data.daily?.sunset?.[0];
+
+    const sunrise = sunriseISO ? new Date(sunriseISO) : null;
+    const sunset  = sunsetISO  ? new Date(sunsetISO)  : null;
+
+    setText("weatherTemp", Number.isFinite(temp) ? `${temp}°` : "--°");
+    setText("weatherDesc", weatherCodeToText(code));
+    setText("sunrise", sunrise ? fmtTime(sunrise) : "--:--");
+    setText("sunset", sunset ? fmtTime(sunset) : "--:--");
+    setText("updatedLabel", `Updated ${fmtTime(new Date())}`);
+  } catch (err) {
+    console.error(err);
     setText("weatherDesc", "Weather unavailable");
-    return;
   }
+}
 
-  const data = await res.json();
-  const temp = Math.round(data.main?.temp);
-  const desc = data.weather?.[0]?.description ?? "—";
+function weatherCodeToText(code) {
+  const map = {
+    0: "Clear",
+    1: "Mostly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    61: "Rain",
+    63: "Heavy rain",
+    71: "Snow",
+    95: "Thunderstorm"
+  };
 
-  // sunrise/sunset are UNIX seconds (UTC). Convert using local time.
-  const sunrise = new Date((data.sys?.sunrise ?? 0) * 1000);
-  const sunset  = new Date((data.sys?.sunset  ?? 0) * 1000);
-
-  setText("weatherTemp", Number.isFinite(temp) ? `${temp}°` : "--°");
-  setText("weatherDesc", desc.charAt(0).toUpperCase() + desc.slice(1));
-  setText("sunrise", fmtTime(sunrise));
-  setText("sunset", fmtTime(sunset));
-  setText("updatedLabel", `Updated ${fmtTime(new Date())}`);
+  if (code === null || code === undefined) return "—";
+  return map[code] ?? `Weather (${code})`;
 }
 
 /***************
