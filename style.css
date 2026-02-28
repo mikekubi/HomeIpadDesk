@@ -13,7 +13,7 @@ body{
   margin:0;
   background:var(--bg);
   color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
 
 .board{
@@ -31,17 +31,18 @@ body{
   padding:18px;
 }
 
-/* ===== TOP ===== */
-
 .row.top{
   display:flex;
   justify-content:space-between;
   align-items:flex-start;
+  gap:18px;
 }
 
 .time{
   font-size:84px;
   font-weight:700;
+  line-height:1;
+  letter-spacing:2px;
 }
 
 .date{
@@ -50,28 +51,27 @@ body{
   font-size:22px;
 }
 
-.weather-block{
-  text-align:right;
+.weather-block{ text-align:right; }
+.weather-line{
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  align-items:baseline;
 }
+.weather-temp{ font-size:56px; font-weight:700; }
+.weather-desc{ font-size:22px; color:var(--muted); }
 
-.weather-temp{
-  font-size:56px;
-  font-weight:700;
-}
-
-.weather-desc{
-  font-size:22px;
-  color:var(--muted);
-}
-
-.sun-line,
-.meta-line{
+.sun-line, .meta-line{
   margin-top:8px;
   color:var(--muted2);
   font-size:16px;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
 }
 
-/* ===== QUOTE ===== */
+.sep{ color:#333; }
 
 .row.quote{
   flex:1;
@@ -79,6 +79,7 @@ body{
 }
 
 .quote-box{
+  width:100%;
   display:flex;
   flex-direction:column;
   justify-content:center;
@@ -88,6 +89,7 @@ body{
 .quote-title{
   color:var(--muted2);
   text-transform:uppercase;
+  letter-spacing:2px;
   font-size:14px;
 }
 
@@ -101,21 +103,33 @@ body{
   font-size:18px;
 }
 
-/* ===== SPOTIFY ===== */
+/* --- Spotify --- */
+
+.row.bottom{
+  padding:14px 18px;
+}
 
 .spotify-box{
   display:flex;
   justify-content:space-between;
+  align-items:flex-start;
   gap:14px;
 }
 
 .spotify-left{
   flex:1;
+  min-width:0;
+}
+
+.spotify-right{
+  display:flex;
+  align-items:flex-start;
 }
 
 .spotify-title{
   color:var(--muted2);
   text-transform:uppercase;
+  letter-spacing:2px;
   font-size:12px;
 }
 
@@ -132,29 +146,42 @@ body{
   border-radius:12px;
   object-fit:cover;
   border:1px solid #1b1b1b;
+  background:#0b0b0b;
+  flex:0 0 auto;
 }
 
 .spotify-meta{
   display:flex;
   flex-direction:column;
+  min-width:0;
 }
 
 .spotify-track{
   font-size:22px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.spotify-artist, .spotify-album{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 .spotify-artist{
   color:var(--muted);
   font-size:16px;
+  margin-top:2px;
 }
 
 .spotify-album{
   color:var(--muted2);
   font-size:14px;
+  margin-top:2px;
 }
 
-/* ===== SINGLE LYRIC DISPLAY ===== */
-
+/* Single-line lyric display (no scrolling) */
 .lyrics-window{
   margin-top:18px;
   padding:20px;
@@ -175,6 +202,7 @@ body{
   transition: opacity 200ms ease;
 }
 
+/* Button */
 .btn{
   background:#111;
   color:var(--text);
@@ -183,6 +211,8 @@ body{
   padding:10px 14px;
   font-size:14px;
 }
+
+.btn:active{ transform: translateY(1px); }
 
 .mono{
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
