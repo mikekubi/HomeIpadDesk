@@ -41,18 +41,18 @@ function startClock(){
  * Quotes (daily)
  ***************/
 async function loadDailyQuote(){
-  const res = await fetch("./quotes.json", { cache: "no-store" });
-  const quotes = await res.json();
+  try {
+    const res = await fetch("https://api.quotable.io/random?maxLength=140");
+    if (!res.ok) throw new Error("Quote fetch failed");
 
-  // Day-of-year index
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now - start;
-  const day = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-  const q = quotes[day % quotes.length];
-  setText("quoteText", q?.text ?? "—");
-  setText("quoteAuthor", q?.author ? `— ${q.author}` : "");
+    const data = await res.json();
+    setText("quoteText", data.content || "—");
+    setText("quoteAuthor", data.author ? `— ${data.author}` : "");
+  } catch (err) {
+    console.error(err);
+    setText("quoteText", "Stay curious. Stay building.");
+    setText("quoteAuthor", "");
+  }
 }
 
 /***************
