@@ -4,6 +4,7 @@
 
 const SPOTIFY_CLIENT_ID   = "099eefbf36214b4e93d0b19bba79ffc8";
 
+
 // Arnhem default
 const DEFAULT_LAT = 51.9851;
 const DEFAULT_LON = 5.8987;
@@ -38,34 +39,23 @@ function startClock(){
 }
 
 /***************
- * Quotes (API + local fallback)
+ * Daily Quote (from your repo's data/quote.json)
  ***************/
-const LOCAL_QUOTES = [
-  { text: "Stay curious. Stay building.", author: "" },
-  { text: "Small steps, done daily, become big change.", author: "Unknown" },
-  { text: "Simplicity is a form of discipline.", author: "Unknown" },
-  { text: "Do the next right thing.", author: "Unknown" }
-];
-
-function pickDailyLocalQuote(){
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const day = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-  return LOCAL_QUOTES[day % LOCAL_QUOTES.length];
-}
-
 async function loadDailyQuote(){
   try {
-    const res = await fetch("https://api.quotable.io/random?maxLength=140", { cache:"no-store" });
-    if (!res.ok) throw new Error("Quote fetch failed");
+    const res = await fetch("./data/quote.json", { cache:"no-store" });
+    if (!res.ok) throw new Error("quote.json missing");
     const data = await res.json();
-    setText("quoteText", data.content || pickDailyLocalQuote().text);
-    setText("quoteAuthor", data.author ? `— ${data.author}` : "");
+
+    setText("quoteText", data.quote || "—");
+    setText("quoteAuthor", "— Leo Tolstoy");
+    setText("quoteMeta", `Calendar of Wisdom • ${data.month} ${data.day}`);
+
   } catch (err) {
     console.error(err);
-    const q = pickDailyLocalQuote();
-    setText("quoteText", q.text);
-    setText("quoteAuthor", q.author ? `— ${q.author}` : "");
+    setText("quoteText", "Daily quote unavailable (waiting for the GitHub daily update).");
+    setText("quoteAuthor", "");
+    setText("quoteMeta", "");
   }
 }
 
@@ -207,6 +197,7 @@ async function spotifyHandleRedirect(){
   store("sp_access_token", tok.access_token);
   store("sp_refresh_token", tok.refresh_token || "");
   store("sp_token_expires_at", String(Date.now() + (tok.expires_in * 1000)));
+
   setText("spotifyTrack", "Connected ✓");
 }
 
@@ -241,11 +232,16 @@ async function spotifyRefreshIfNeeded(){
 }
 
 /***************
- * Synced Lyrics (Single Line Display)
+ * Synced Lyrics (LRCLIB) - simple (no word highlight)
  ***************/
 let syncedLyrics = [];
 let lastTrackIdForLyrics = "";
 let activeLyricIndex = -1;
+
+// local player progress (for sync)
+let playerProgressMs = 0;
+let playerIsPlaying = false;
+let playerStamp = performance.now();
 
 function normalizeTrackTitle(t) {
   if (!t) return "";
@@ -279,30 +275,6 @@ function parseLrcToLines(lrcText) {
   return lines;
 }
 
-function renderCurrentLyric(text) {
-  const container = el("spotifyLyrics");
-  if (!container) return;
-
-  // Fade on change
-  container.style.opacity = "0";
-  setTimeout(() => {
-    container.textContent = text || "";
-    container.style.opacity = "1";
-  }, 120);
-}
-
-function setActiveLyricByTime(progressMs) {
-  if (!syncedLyrics.length) return;
-
-  let idx = 0;
-  while (idx + 1 < syncedLyrics.length && syncedLyrics[idx + 1].timeMs <= progressMs) idx++;
-
-  if (idx === activeLyricIndex) return;
-  activeLyricIndex = idx;
-
-  renderCurrentLyric(syncedLyrics[idx].text);
-}
-
 async function fetchSyncedLyricsLRCLIB(artist, track) {
   const cleanArtist = (artist || "").split(",")[0].trim();
   const cleanTrack = normalizeTrackTitle(track);
@@ -323,8 +295,26 @@ async function fetchSyncedLyricsLRCLIB(artist, track) {
   return parseLrcToLines(lrc);
 }
 
+function renderLyricLine(text){
+  const node = el("spotifyLyrics");
+  if (!node) return;
+  node.textContent = text;
+}
+
+function updateActiveLine(progressMs){
+  if (!syncedLyrics.length) return;
+
+  let idx = 0;
+  while (idx + 1 < syncedLyrics.length && syncedLyrics[idx + 1].timeMs <= progressMs) idx++;
+
+  if (idx !== activeLyricIndex){
+    activeLyricIndex = idx;
+    renderLyricLine(syncedLyrics[idx].text);
+  }
+}
+
 /***************
- * Now Playing (progress-aware) + Hide Connect button when connected
+ * Now Playing
  ***************/
 async function spotifyNowPlaying(){
   let access = await spotifyRefreshIfNeeded();
@@ -338,7 +328,7 @@ async function spotifyNowPlaying(){
     syncedLyrics = [];
     lastTrackIdForLyrics = "";
     activeLyricIndex = -1;
-    renderCurrentLyric("Lyrics will show here (when available).");
+    renderLyricLine("Lyrics will show here (when available).");
 
     const artEl = el("spotifyArt");
     if (artEl) {
@@ -347,7 +337,6 @@ async function spotifyNowPlaying(){
       artEl.alt = "";
     }
 
-    // show the button if we are not connected
     if (btn) btn.style.display = "block";
   };
 
@@ -356,20 +345,19 @@ async function spotifyNowPlaying(){
     return;
   }
 
-  // If we have a token, hide the connect button
+  // Hide button when connected
   if (btn) btn.style.display = "none";
 
   let res = await fetch("https://api.spotify.com/v1/me/player", {
-    headers: { Authorization: `Bearer ${access}` },
+    headers: { "Authorization": `Bearer ${access}` },
     cache: "no-store"
   });
 
-  // 401 recovery
   if (res.status === 401) {
     store("sp_token_expires_at", "0");
     access = await spotifyRefreshIfNeeded();
     res = await fetch("https://api.spotify.com/v1/me/player", {
-      headers: { Authorization: `Bearer ${access}` },
+      headers: { "Authorization": `Bearer ${access}` },
       cache: "no-store"
     });
   }
@@ -385,9 +373,12 @@ async function spotifyNowPlaying(){
   }
 
   const data = await res.json();
-  const progressMs = Number(data.progress_ms ?? 0);
 
-  const item = data.item;
+  playerProgressMs = Number(data.progress_ms ?? 0);
+  playerIsPlaying = Boolean(data.is_playing);
+  playerStamp = performance.now();
+
+  const item = data?.item;
   const trackId = item?.id || "";
   const track = item?.name ?? "—";
   const artist = item?.artists?.map(a => a.name).join(", ") ?? "";
@@ -399,42 +390,59 @@ async function spotifyNowPlaying(){
   setText("spotifyAlbum", album);
 
   const artEl = el("spotifyArt");
-  if (artEl && artUrl) {
-    artEl.src = artUrl;
-    artEl.alt = album ? `Album art: ${album}` : "Album art";
-    artEl.style.display = "block";
-  } else if (artEl) {
-    artEl.style.display = "none";
-    artEl.removeAttribute("src");
-    artEl.alt = "";
+  if (artEl) {
+    if (artUrl) {
+      artEl.src = artUrl;
+      artEl.alt = album ? `Album art: ${album}` : "Album art";
+      artEl.style.display = "block";
+    } else {
+      artEl.style.display = "none";
+      artEl.removeAttribute("src");
+      artEl.alt = "";
+    }
   }
 
-  // Fetch synced lyrics only when track changes
+  // Fetch lyrics only when track changes
   if (trackId && trackId !== lastTrackIdForLyrics) {
     lastTrackIdForLyrics = trackId;
     activeLyricIndex = -1;
-    renderCurrentLyric("Loading synced lyrics…");
+    renderLyricLine("Loading synced lyrics…");
 
     try {
       syncedLyrics = await fetchSyncedLyricsLRCLIB(artist, track);
       if (!syncedLyrics.length) {
-        renderCurrentLyric("Synced lyrics unavailable for this track");
+        renderLyricLine("Synced lyrics unavailable for this track");
       } else {
-        renderCurrentLyric(syncedLyrics[0].text);
+        updateActiveLine(playerProgressMs);
       }
     } catch {
       syncedLyrics = [];
-      renderCurrentLyric("Synced lyrics unavailable for this track");
+      renderLyricLine("Synced lyrics unavailable for this track");
     }
+  } else {
+    if (syncedLyrics.length) updateActiveLine(playerProgressMs);
   }
+}
 
-  // Sync line to current progress (freezes when paused)
-  if (syncedLyrics.length) setActiveLyricByTime(progressMs);
+/***************
+ * Smooth lyric ticker (no extra Spotify calls)
+ ***************/
+function startLyricTicker(){
+  setInterval(() => {
+    if (!syncedLyrics.length) return;
+
+    const now = performance.now();
+    const delta = now - playerStamp;
+    const estProgress = playerIsPlaying ? (playerProgressMs + delta) : playerProgressMs;
+
+    updateActiveLine(estProgress);
+  }, 200);
 }
 
 function startSpotifyLoop(){
   spotifyNowPlaying();
-  setInterval(spotifyNowPlaying, 1000);
+  setInterval(spotifyNowPlaying, 1000); // poll player
+  startLyricTicker();
 }
 
 /***************
@@ -451,7 +459,10 @@ async function boot(){
 
   startSpotifyLoop();
 
+  // update quote every hour (in case workflow ran and iPad is still open)
   setInterval(loadDailyQuote, 60 * 60 * 1000);
+
+  // update weather every 10 minutes
   setInterval(loadWeather, 10 * 60 * 1000);
 }
 
